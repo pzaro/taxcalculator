@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Πλήρης Υπολογιστής Φόρου & Εκκαθάρισης</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f6f9; padding: 20px; color: #333; }
+        .container { max-width: 650px; margin: 0 auto; background: white; padding: 35px; border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+        h2 { text-align: center; color: #2c3e50; margin-bottom: 25px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+        
+        .form-group { margin-bottom: 20px; }
+        label { font-weight: 600; display: block; margin-bottom: 8px; color: #444; }
+        select, input[type="number"] { width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 16px; box-sizing: border-box; transition: border-color 0.3s; }
+        select:focus, input:focus { border-color: #007bff; outline: none; }
+        
+        /* Deductions Box */
+        .deduction-box { background-color: #fff8e1; border: 1px dashed #f0c14b; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        
+        /* Options Box Styling */
+        .options-box { background-color: #eef2f7; padding: 20px; border-radius: 8px; border-left: 5px solid #007bff; margin-bottom: 20px; }
+        
+        .checkbox-wrapper { display: flex; align-items: start; margin-bottom: 12px; }
+        .checkbox-wrapper input[type="checkbox"] { width: 20px; height: 20px; margin-right: 12px; margin-top: 2px; cursor: pointer; }
+        .checkbox-label { line-height: 1.4; cursor: pointer; }
+        .sub-text { display: block; font-size: 0.85em; color: #666; font-weight: normal; margin-top: 2px; }
+        
+        .radio-group { margin-top: 8px; padding-left: 32px; }
+        .radio-group label { font-weight: normal; margin-bottom: 5px; cursor: pointer; }
+        .radio-group input { margin-right: 8px; }
+
+        .conversion-alert { display: none; background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; border: 1px solid #ffeeba; margin-top: 10px; font-size: 0.9em; }
+
+        button { width: 100%; background-color: #007bff; color: white; padding: 15px; border: none; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; transition: background 0.2s; box-shadow: 0 4px 6px rgba(0,123,255,0.2); }
+        button:hover { background-color: #0056b3; transform: translateY(-1px); }
+
+        /* Results */
+        .results { margin-top: 30px; display: none; background: #fafafa; border-radius: 8px; padding: 20px; border: 1px solid #eee; }
+        .result-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed #ddd; }
+        .result-row:last-child { border-bottom: none; }
+        
+        .result-row.total { font-weight: 800; font-size: 1.4em; border-top: 2px solid #ddd; border-bottom: none; margin-top: 15px; padding-top: 20px; }
+        .result-value { font-weight: 700; color: #2c3e50; }
+        
+        .pay { color: #dc3545; } /* Red for payment */
+        .refund { color: #28a745; } /* Green for refund */
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Υπολογιστής Φόρου & Εκκαθάρισης</h2>
+    
+    <div class="form-group">
+        <label for="entityType">Επιλέξτε Νομική Μορφή:</label>
+        <select id="entityType" onchange="updateOptions()">
+            <option value="individual">Ατομική Επιχείρηση</option>
+            <option value="company">Νομικό Πρόσωπο (ΟΕ, ΕΕ, ΙΚΕ)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="income">Καθαρό Φορολογητέο Εισόδημα (€):</label>
+        <input type="number" id="income" placeholder="Π.χ. 45000">
+    </div>
+
+    <div id="dynamicOptions" class="options-box"></div>
+
+    <div class="form-group deduction-box">
+        <label for="lastYearAdvance">Προκαταβολή Προηγούμενου Έτους (€):</label>
+        <input type="number" id="lastYearAdvance" placeholder="Π.χ. 3000">
+        <small style="display:block; margin-top:5px; color:#555;">
+            Το ποσό που πληρώσατε πέρυσι ως προκαταβολή για τη φετινή χρήση. Θα αφαιρεθεί από το σύνολο.
+        </small>
+    </div>
+
+    <button onclick="calculateAll()">Υπολογισμός Εκκαθάρισης</button>
+
+    <div id="resultsArea" class="results">
+        <div class="result-row">
+            <span>Κύριος Φόρος Εισοδήματος:</span>
+            <span class="result-value" id="mainTaxRes">0,00 €</span>
+        </div>
+        <div class="result-row">
+            <span>Τέλος Επιτηδεύματος:</span>
+            <span class="result-value" id="levyRes">0,00 €</span>
+        </div>
+        <div class="result-row">
+            <span>Νέα Προκαταβολή (επόμενου έτους):</span>
+            <span class="result-value" id="advanceRes">0,00 €</span>
+        </div>
+        <div class="result-row" style="color: #666;">
+            <span>μείον Προκαταβολή Προηγ. Έτους:</span>
+            <span class="result-value" id="deductionRes">- 0,00 €</span>
+        </div>
+
+        <div class="result-row total">
+            <span id="finalLabel">Τελικό Ποσό:</span>
+            <span class="result-value" id="totalRes">0,00 €</span>
+        </div>
+        
+        <div style="font-size: 0.85em; color: #777; margin-top: 15px; text-align: center; line-height: 1.5;">
+            * Στο ποσό δεν περιλαμβάνονται εισφορές ΕΦΚΑ ή χαρτόσημα/ΟΓΑ (όπου ισχύουν).
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateOptions() {
+        const type = document.getElementById('entityType').value;
+        const container = document.getElementById('dynamicOptions');
+        
+        let html = '';
+
+        if (type === 'individual') {
+            html += `
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="newBusiness">
+                    <label for="newBusiness" class="checkbox-label">
+                        Νέα Επιχείρηση (Πρώτα 3 έτη)
+                        <span class="sub-text">Μειώνει τη νέα προκαταβολή στο 27,5%.</span>
+                    </label>
+                </div>
+                <div style="margin-top:10px; color:#28a745; font-weight:bold; font-size:0.9em;">
+                    ✔ Το Τέλος Επιτηδεύματος έχει καταργηθεί για τις ατομικές.
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="checkbox-wrapper" style="background: #e2e6ea; padding: 10px; border-radius: 5px;">
+                    <input type="checkbox" id="isTransformation" onchange="handleTransformationToggle()">
+                    <label for="isTransformation" class="checkbox-label">
+                        <strong>Προέρχεται από μετατροπή Ατομικής;</strong>
+                        <span class="sub-text">Η νέα προκαταβολή κλειδώνει στο 80% (συνέχιση).</span>
+                    </label>
+                </div>
+
+                <div class="checkbox-wrapper" id="newCompanyWrapper">
+                    <input type="checkbox" id="newBusiness">
+                    <label for="newBusiness" class="checkbox-label">
+                        Νέα Εταιρεία (χωρίς προηγ. δραστηριότητα)
+                        <span class="sub-text">Μειωμένη νέα προκαταβολή 40%.</span>
+                    </label>
+                </div>
+                
+                <div id="conversionMsg" class="conversion-alert">
+                    ⚠️ Λόγω μετατροπής, η νέα προκαταβολή υπολογίζεται στο 80%.
+                </div>
+
+                <hr style="border-top: 1px solid #ccd0d5; margin: 15px 0;">
+                
+                <label style="margin-bottom:10px; display:block; font-weight:bold;">Τέλος Επιτηδεύματος:</label>
+                <div class="checkbox-wrapper">
+                    <input type="checkbox" id="levyExempt">
+                    <label for="levyExempt" class="checkbox-label">
+                        Πλήρης Απαλλαγή
+                        <span class="sub-text">Επιλέξτε το αν υπάρχει απαλλαγή (π.χ. πρώτη 5ετία).</span>
+                    </label>
+                </div>
+                <div id="levyAmountDiv" style="margin-left: 32px;">
+                    <span style="font-size:0.9em;">Αν δεν υπάρχει απαλλαγή:</span>
+                    <div class="radio-group">
+                        <label><input type="radio" name="levyVal" value="1000" checked> 1.000€ (Πόλεις > 200k)</label><br>
+                        <label><input type="radio" name="levyVal" value="800"> 800€ (Πόλεις < 200k)</label>
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    }
+
+    function handleTransformationToggle() {
+        const isTrans = document.getElementById('isTransformation').checked;
+        const newBizCheck = document.getElementById('newBusiness');
+        const newBizWrapper = document.getElementById('newCompanyWrapper');
+        const alertMsg = document.getElementById('conversionMsg');
+
+        if (isTrans) {
+            newBizCheck.checked = false;
+            newBizWrapper.style.opacity = '0.5';
+            newBizWrapper.style.pointerEvents = 'none';
+            alertMsg.style.display = 'block';
+        } else {
+            newBizWrapper.style.opacity = '1';
+            newBizWrapper.style.pointerEvents = 'auto';
+            alertMsg.style.display = 'none';
+        }
+    }
+
+    window.onload = updateOptions;
+
+    function formatCurrency(num) {
+        return num.toLocaleString('el-GR', { style: 'currency', currency: 'EUR' });
+    }
+
+    function calculateAll() {
+        const type = document.getElementById('entityType').value;
+        const income = parseFloat(document.getElementById('income').value);
+        const lastYearAdvance = parseFloat(document.getElementById('lastYearAdvance').value) || 0;
+        
+        if (isNaN(income) || income < 0) {
+            alert("Παρακαλώ εισάγετε θετικό αριθμό για το εισόδημα.");
+            return;
+        }
+
+        let mainTax = 0;
+        let levy = 0;
+        let advanceRate = 0;
+        let isNewBusiness = false;
+        let isTransformation = false;
+
+        // Ανάγνωση Checkboxes
+        if (document.getElementById('newBusiness')) isNewBusiness = document.getElementById('newBusiness').checked;
+        if (document.getElementById('isTransformation')) isTransformation = document.getElementById('isTransformation').checked;
+
+        // 1. Υπολογισμός Φόρου
+        if (type === 'individual') {
+            if (income <= 10000) mainTax = income * 0.09;
+            else if (income <= 20000) mainTax = 900 + (income - 10000) * 0.22;
+            else if (income <= 30000) mainTax = 3100 + (income - 20000) * 0.28;
+            else if (income <= 40000) mainTax = 5900 + (income - 30000) * 0.36;
+            else mainTax = 9500 + (income - 40000) * 0.44;
+            
+            advanceRate = isNewBusiness ? 0.275 : 0.55;
+            levy = 0;
+        } else {
+            mainTax = income * 0.22;
+            
+            if (isTransformation) advanceRate = 0.80;
+            else if (isNewBusiness) advanceRate = 0.40;
+            else advanceRate = 0.80;
+
+            const isLevyExempt = document.getElementById('levyExempt').checked;
+            if (isLevyExempt) levy = 0;
+            else {
+                const levyRadios = document.getElementsByName('levyVal');
+                for (const radio of levyRadios) {
+                    if (radio.checked) { levy = parseFloat(radio.value); break; }
+                }
+            }
+        }
+
+        let nextYearAdvance = mainTax * advanceRate;
+        
+        // 2. Τελική Εκκαθάριση
+        // Σύνολο Χρέωσης = Φόρος + Τέλος + Νέα Προκαταβολή
+        let totalCharges = mainTax + levy + nextYearAdvance;
+        
+        // Τελικό Πληρωτέο = Σύνολο Χρέωσης - Περσινή Προκαταβολή
+        let finalAmount = totalCharges - lastYearAdvance;
+
+        // Ενημέρωση UI
+        document.getElementById('mainTaxRes').innerText = formatCurrency(mainTax);
+        document.getElementById('levyRes').innerText = formatCurrency(levy);
+        document.getElementById('advanceRes').innerText = formatCurrency(nextYearAdvance) + ` (${(advanceRate*100).toFixed(1)}%)`;
+        document.getElementById('deductionRes').innerText = "- " + formatCurrency(lastYearAdvance);
+
+        const totalEl = document.getElementById('totalRes');
+        const labelEl = document.getElementById('finalLabel');
+
+        if (finalAmount >= 0) {
+            // Χρεωστικό (Πληρωμή)
+            labelEl.innerText = "Ποσό για Πληρωμή (Χρεωστικό):";
+            totalEl.innerText = formatCurrency(finalAmount);
+            totalEl.className = "result-value pay";
+        } else {
+            // Πιστωτικό (Επιστροφή)
+            labelEl.innerText = "Επιστροφή Φόρου (Πιστωτικό):";
+            totalEl.innerText = formatCurrency(Math.abs(finalAmount));
+            totalEl.className = "result-value refund";
+        }
+        
+        document.getElementById('resultsArea').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
